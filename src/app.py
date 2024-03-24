@@ -4,7 +4,6 @@ from tkinter import ttk  # Import ttk for styled widgets
 
 import os
 import time
-import pyudev 
 
 def browse_file():
     global filenames
