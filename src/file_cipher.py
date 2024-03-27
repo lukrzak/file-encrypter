@@ -2,33 +2,40 @@ from Cryptodome.PublicKey import RSA
 from Cryptodome.Cipher import PKCS1_OAEP
 
 
-def encrypt_file(file_path: str, public_key_path: str) -> None:
-    with open(public_key_path, "rb") as f:
-        public_key = RSA.importKey(f.read())
+def cipher_file(file_path: str, key_path: str, mode: str,
+                pin: str = None, output_mode: str = "value", output_file: str = None):
+    # Read key and create Cipher object based on the provided key
+    with open(key_path, "rb") as f:
+        key = RSA.importKey(f.read(), pin)
+    cipher = PKCS1_OAEP.new(key)
 
-    cipher = PKCS1_OAEP.new(public_key)
+    # Read file content
     with open(file_path, "rb") as f:
         content = f.read()
 
-    encrypted_content = cipher.encrypt(content)
-    with open("output.txt", "wb") as f:
-        f.write(encrypted_content)
+    # Prepare and return content based on chosen mode
+    cipher_content = get_cipher_content(cipher, content, mode)
+    return get_cipher_result(cipher_content, output_mode, output_file, mode)
 
 
-encrypt_file("D:\\semVI\\file-encrypter\\src\\texxt.txt", "D:\\semVI\\file-encrypter\\src\\public_key.pem")
+def get_cipher_content(cipher, content: bytes, mode: str) -> bytes:
+    if mode == "encrypt":
+        return cipher.encrypt(content)
+    elif mode == "decrypt":
+        return cipher.decrypt(content)
+    else:
+        raise Exception("Unknown mode. Allowed values are 'encrypt' or 'decrypt'")
 
 
-def decrypt_file(file_path: str, private_key_path: str, pin: str) -> None:
-    with open(private_key_path, "rb") as f:
-        private_key = RSA.importKey(f.read(), pin)
-
-    cipher = PKCS1_OAEP.new(private_key)
-    with open(file_path, "rb") as f:
-        content = f.read()
-
-    decrypted_content = cipher.decrypt(content)
-    with open("output_de.txt", "wb") as f:
-        f.write(decrypted_content)
-
-
-decrypt_file("D:\\semVI\\file-encrypter\\src\\output.txt", "D:\\semVI\\file-encrypter\\src\\private_key.pem", "1234")
+def get_cipher_result(cipher_content: bytes, output_mode: str, output_file: str, mode: str) -> str:
+    if output_mode == "value":
+        if mode == "decrypt":
+            return cipher_content.decode()
+        else:
+            return "Encoded"
+    elif output_mode == "file":
+        with open(output_file, "wb") as f:
+            f.write(cipher_content)
+        return f"Result saved in {output_file}"
+    else:
+        raise Exception("Unknown output mode. Allowed values are 'file' or 'value'")
