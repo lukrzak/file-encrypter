@@ -79,7 +79,7 @@ def get_content(output_mode: str, content: bytes, output_path: str):
 
 
 def generate_file_signature(file_path: str, private_key_path: str, certificate_path: str, pin: str, signature_output_path: str):
-    XADES_TEPMLATE_PATH: str = "xades_teamplate.xml"
+    XADES_TEPMLATE_PATH: str = "xades_template.xml"
     with open(private_key_path, "rb") as f:
         private_key = serialization.load_pem_private_key(
             f.read(),
@@ -163,10 +163,6 @@ def verify_signature(file_path: str, xades_signature_path: str):
             padding.PKCS1v15(),
             hashes.SHA256()
         )
-        print("kox")
+        print("Valid")
     except InvalidSignature:
         print("Invalid")
-
-
-# generate_file_signature("test.txt", "private.pem", "certificate.der", "1234", "outaa.xml")
-# verify_signature("test.txt", "outaa.xml")
