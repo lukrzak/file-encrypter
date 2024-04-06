@@ -163,6 +163,6 @@ def verify_signature(file_path: str, xades_signature_path: str):
             padding.PKCS1v15(),
             hashes.SHA256()
         )
-        print("Valid")
+        return True
     except InvalidSignature:
-        print("Invalid")
+        return False
