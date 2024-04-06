@@ -42,7 +42,7 @@ def generate_and_save_certificate(private_key, public_key, certificate_save_path
         .sign(private_key, hashes.SHA256())
 
     with open(certificate_save_path, "wb") as f:
-        f.write(certificate.public_bytes(serialization.Encoding.PEM))
+        f.write(certificate.public_bytes(serialization.Encoding.DER))
 
 
 def generate_and_save_public_key(private_key, public_key_save_path: str):

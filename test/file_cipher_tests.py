@@ -48,6 +48,7 @@ class TestFileCipher(unittest.TestCase):
         os.remove(WORKDIR + "\\" + OUTPUT_FILENAME)
         os.remove(WORKDIR + "\\" + PRIVATE_KEY_NAME)
         os.remove(WORKDIR + "\\" + PUBLIC_KEY_NAME)
+        os.remove(WORKDIR + "\\" + CERTIFICATE_NAME)
         os.remove(WORKDIR + "\\" + TEST_FILE)
 
     def test_cipher_with_return_value(self):
@@ -86,6 +87,7 @@ class TestFileCipher(unittest.TestCase):
         os.remove(WORKDIR + "\\" + OUTPUT_FILENAME)
         os.remove(WORKDIR + "\\" + PRIVATE_KEY_NAME)
         os.remove(WORKDIR + "\\" + PUBLIC_KEY_NAME)
+        os.remove(WORKDIR + "\\" + CERTIFICATE_NAME)
         os.remove(WORKDIR + "\\" + TEST_FILE)
 
 
