@@ -2,7 +2,7 @@ from Cryptodome.PublicKey import RSA
 import sys
 
 
-def generate_keys(private_key_save_path: str, public_key_save_path: str, pin: str) -> None:
+def generate_keys(private_key_save_path: str, public_key_save_path: str, pin: str, file_name: str) -> None:
     RSA_ITERATIONS: int = 21_000     # Recommended value
     SALT_SIZE: int = 8
     BLOCK_SIZE: int = 8
@@ -12,7 +12,7 @@ def generate_keys(private_key_save_path: str, public_key_save_path: str, pin: st
     PROTECTION_ALGORITHMS: str = f'PBKDF2WithHMAC-{HASHING_ALGORITHM}And{ENCRYPTION_ALGORITHM}'
 
     key = RSA.generate(KEY_LENGTH)
-    with open(private_key_save_path + "/private_key.pem", "wb") as f:
+    with open(private_key_save_path + f"/{file_name}_priv.pem", "wb") as f:
         # Creates private key, that is encrypted with 'pin' password. Uses PKCS#8 serialization standard, which supports
         # encryption. Uses SHA512 hashing and AES256 with Cipher Block Chaining encrypting algorithms. To slow down
         # brute attacks, hash algorithm is repeated 'RSA_ITERATIONS' times.
@@ -27,7 +27,7 @@ def generate_keys(private_key_save_path: str, public_key_save_path: str, pin: st
                               prot_params=protection_settings)
         f.write(data)
 
-    with open(public_key_save_path + "/public_key.pem", "wb") as f:
+    with open(public_key_save_path + f"/{file_name}_pub.pem", "wb") as f:
         data = key.public_key().export_key()
         f.write(data)
 
