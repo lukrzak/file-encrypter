@@ -79,7 +79,7 @@ def get_content(output_mode: str, content: bytes, output_path: str):
 
 
 def generate_file_signature(file_path: str, private_key_path: str, certificate_path: str, pin: str, signature_output_path: str):
-    XADES_TEPMLATE_PATH: str = "xades_template.xml"
+    XADES_TEPMLATE_PATH: str = "src/xades_template.xml"
     with open(private_key_path, "rb") as f:
         private_key = serialization.load_pem_private_key(
             f.read(),
