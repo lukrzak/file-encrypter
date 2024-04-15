@@ -1,35 +1,83 @@
-from Cryptodome.PublicKey import RSA
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography import x509
+from cryptography.x509.oid import NameOID
 import sys
+import datetime
 
 
-def generate_keys(private_key_save_path: str, public_key_save_path: str, pin: str) -> None:
-    RSA_ITERATIONS: int = 21_000     # Recommended value
-    SALT_SIZE: int = 8
-    BLOCK_SIZE: int = 8
+SYMMETRIC_KEY_LENGTH: int = 256
+KEY_ITERATIONS: int = 21_000        # Recommended value
+SALT: bytes = b'bsk-project'
+
+
+def generate_keys(private_key_save_path: str, public_key_save_path: str, pin: str, certificate_save_path: str) -> None:
+    sym_key = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=SYMMETRIC_KEY_LENGTH,
+        salt=SALT,
+        iterations=KEY_ITERATIONS
+    )
+    symmetric_key = sym_key.derive(pin.encode())
+
+    private_key = generate_and_save_private_key(symmetric_key, private_key_save_path)
+    public_key = generate_and_save_public_key(private_key, public_key_save_path)
+
+    generate_and_save_certificate(private_key, public_key, certificate_save_path)
+
+
+def generate_and_save_certificate(private_key, public_key, certificate_save_path: str):
+    subject = x509.Name([
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "BSK - LN,KP"),
+    ])
+
+    certificate = x509.CertificateBuilder()\
+        .subject_name(subject)\
+        .issuer_name(subject)\
+        .public_key(public_key)\
+        .serial_number(x509.random_serial_number())\
+        .not_valid_before(datetime.datetime.now())\
+        .not_valid_after(datetime.datetime.now() + datetime.timedelta(days=30))\
+        .sign(private_key, hashes.SHA256())
+
+    with open(certificate_save_path, "wb") as f:
+        f.write(certificate.public_bytes(serialization.Encoding.DER))
+
+
+def generate_and_save_public_key(private_key, public_key_save_path: str):
+    public_key = private_key.public_key()
+
+    pem_public_key = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+
+    with open(public_key_save_path, "wb") as f:
+        f.write(pem_public_key)
+
+    return public_key
+
+
+def generate_and_save_private_key(symmetric_key, private_key_save_path):
+    EXPONENT: int = 65537
     KEY_LENGTH: int = 4_096
-    HASHING_ALGORITHM: str = 'SHA512'
-    ENCRYPTION_ALGORITHM: str = 'AES256-CBC'
-    PROTECTION_ALGORITHMS: str = f'PBKDF2WithHMAC-{HASHING_ALGORITHM}And{ENCRYPTION_ALGORITHM}'
 
-    key = RSA.generate(KEY_LENGTH)
-    with open(private_key_save_path + "/private_key.pem", "wb") as f:
-        # Creates private key, that is encrypted with 'pin' password. Uses PKCS#8 serialization standard, which supports
-        # encryption. Uses SHA512 hashing and AES256 with Cipher Block Chaining encrypting algorithms. To slow down
-        # brute attacks, hash algorithm is repeated 'RSA_ITERATIONS' times.
-        protection_settings: dict = {
-            'iteration_count': RSA_ITERATIONS,
-            'salt_size': SALT_SIZE,
-            'block_size': BLOCK_SIZE
-        }
-        data = key.export_key(passphrase=pin,
-                              pkcs=8,
-                              protection=PROTECTION_ALGORITHMS,
-                              prot_params=protection_settings)
-        f.write(data)
+    private_key = rsa.generate_private_key(
+        public_exponent=EXPONENT,
+        key_size=KEY_LENGTH
+    )
 
-    with open(public_key_save_path + "/public_key.pem", "wb") as f:
-        data = key.public_key().export_key()
-        f.write(data)
+    pem_private_key = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.BestAvailableEncryption(symmetric_key)
+    )
+
+    with open(private_key_save_path, "wb") as f:
+        f.write(pem_private_key)
+
+    return private_key
 
 
 if __name__ == "__main__":
@@ -39,4 +87,5 @@ if __name__ == "__main__":
     private_key_path: str = sys.argv[1]
     public_key_path: str = sys.argv[2]
     pin: str = sys.argv[3]
-    generate_keys(private_key_path, public_key_path, pin)
+    certificate_path: str = sys.argv[4]
+    generate_keys(private_key_path, public_key_path, pin, certificate_path)
