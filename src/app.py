@@ -14,7 +14,7 @@ class AppWindow:
         def __init__(self) -> None:
             self.app = CTk()
             self.app.title("File Encrypter")
-            self.app.geometry("650x350")
+            self.app.geometry("450x350")
             self.found_keys = self.find_keys()
             self.keys_names = None
             self.generate_window()
@@ -135,7 +135,7 @@ class AppWindow:
 
         def select_file(self, encrypt: bool) -> None:
             self.selected_file = None
-            self.filetypes_for_encryp = (("TXT", "*.txt"), ("C++", "*.cpp"))
+            self.filetypes_for_encryp = (("TXT", "*.txt"), ("C++", "*.cpp"), ("PDF", "*.pdf"), ("PNG", "*.png"))
             self.filetypes_for_decryp = (("Encrypted File", "*.enc"),)
             file_types = self.filetypes_for_encryp if encrypt else self.filetypes_for_decryp
             self.selected_file = filedialog.askopenfilename(filetypes=file_types)
@@ -162,7 +162,7 @@ class AppWindow:
 
         def select_output_file(self, encrypt: bool) -> None:
             self.file_output_path = None
-            self.output_types_for_decryp = (("TXT", "*.txt"), ("C++", "*.cpp"))
+            self.output_types_for_decryp = (("TXT", "*.txt"), ("C++", "*.cpp"), ("PDF", "*.pdf"), ("PNG", "*.png"))
             self.output_types_for_encryp = (("Encrypted File", "*.enc"),)
             file_types = self.output_types_for_encryp if encrypt else self.output_types_for_decryp
             defaultextension = ".enc" if encrypt else ".txt"
