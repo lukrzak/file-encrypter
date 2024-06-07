@@ -1,3 +1,5 @@
+import math
+
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -12,7 +14,13 @@ import os
 SYMMETRIC_KEY_LENGTH: int = 256
 KEY_ITERATIONS: int = 21_000     # Recommended value
 SALT: bytes = b'bsk-project'
+MAX_ENC_BLOCK_SIZE = 512 - 11   # 512 bytes (from the key size) - 11 for PKCS padding
+MAX_DEC_BLOCK_SIZE = 512        # 512 bytes from the key
 
+encryption_status_finish_value = 0
+encryption_status_current = 0
+decryption_status_finish_value = 0
+decryption_status_current = 0
 
 def cipher_file(file_path: str, key_path: str, mode: str, pin: str = None, output_path: str = None,
                 output_mode: str = "value"):
@@ -30,12 +38,19 @@ def encrypt_file(file_path: str, public_key_path: str, output_path: str, output_
     with open(file_path, "rb") as f:
         content = f.read()
 
-    encrypted_text = public_key.encrypt(
-        content,
-        padding.PKCS1v15()
-    )
+    global encryption_status_finish_value
+    encryption_status_finish_value = math.ceil(len(content) / MAX_ENC_BLOCK_SIZE)
+    data_packages = [content[i * MAX_ENC_BLOCK_SIZE: (i + 1) * MAX_ENC_BLOCK_SIZE] for i in range(encryption_status_finish_value)]
+    encrypted_file_content = b''
+    for package in data_packages:
+        encrypted_text = public_key.encrypt(
+            package,
+            padding.PKCS1v15()
+        )
+        encrypted_file_content += encrypted_text
+        enc_hook()
 
-    return get_content(output_mode, encrypted_text, output_path)
+    return get_content(output_mode, encrypted_file_content, output_path)
 
 
 def decrypt_key(file_path: str, private_key_path: str, pin: str, output_path: str, output_mode: str = "value"):
@@ -47,12 +62,20 @@ def decrypt_key(file_path: str, private_key_path: str, pin: str, output_path: st
     with open(file_path, "rb") as f:
         content = f.read()
 
-    decrypted_text = private_key.decrypt(
-        content,
-        padding.PKCS1v15()
-    )
+    global decryption_status_finish_value
+    decryption_status_finish_value = math.ceil(len(content) / MAX_DEC_BLOCK_SIZE)
+    data_packages = [content[i * MAX_DEC_BLOCK_SIZE: (i + 1) * MAX_DEC_BLOCK_SIZE] for i in range(decryption_status_finish_value)]
+    decrypted_file_content = b''
 
-    return get_content(output_mode, decrypted_text, output_path)
+    for package in data_packages:
+        decrypted_text = private_key.decrypt(
+            package,
+            padding.PKCS1v15()
+        )
+        decrypted_file_content += decrypted_text
+        dec_hook()
+
+    return get_content(output_mode, decrypted_file_content, output_path)
 
 
 def load_pin_hash(pin: str):
@@ -166,3 +189,15 @@ def verify_signature(file_path: str, xades_signature_path: str):
         return True
     except InvalidSignature:
         return False
+
+
+def enc_hook():
+    # this method invokes, whenever portion of the data is encrypted
+    global encryption_status_current
+    encryption_status_current += 1
+
+
+def dec_hook():
+    # this method invokes, whenever portion of the data is decrypted
+    global decryption_status_current
+    decryption_status_current += 1
