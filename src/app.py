@@ -1,7 +1,7 @@
 from customtkinter import *
 import customtkinter
 from rsa_generator import generate_keys
-
+import threading
 import tkinter as tk
 import file_cipher as fc
 import os
@@ -14,10 +14,12 @@ class AppWindow:
         def __init__(self) -> None:
             self.app = CTk()
             self.app.title("File Encrypter")
-            self.app.geometry("450x350")
+            self.app.geometry("600x350")
             self.found_keys = self.find_keys()
             self.keys_names = None
+            self.progress_bar = None
             self.generate_window()
+            
 
         def get_removable_drives(self) -> list:
             drives = []
@@ -57,10 +59,10 @@ class AppWindow:
             self.next_button = CTkLabel(self.right_frame, text="")
 
             # Encrypting button
-            self.encryptingButton = CTkButton(self.left_frame, text="Encrypting          ",
+            encryptingButton = CTkButton(self.left_frame, text="Encrypting          ",
                                               command=lambda: self.select_key(encrypt=True), border_width=2,
                                               image=enc_image, compound="left")
-            self.encryptingButton.pack(padx=2, pady=5)
+            encryptingButton.pack(padx=2, pady=5)
 
             # Decrypting button
             decryptingButton = CTkButton(self.left_frame, text="Decrypting          ",
@@ -86,7 +88,9 @@ class AppWindow:
                                           image=reg_image, compound="left")
             registerKeyButton.pack(pady=10)
 
-            # Label for finded keys
+            self.buttons = [encryptingButton, decryptingButton, signButton, checkButton, registerKeyButton]
+
+            # Label for fined keys
             self.refresh_found_keys()
 
             self.title.pack(pady=5)
@@ -158,16 +162,26 @@ class AppWindow:
 
         def select_file(self, encrypt: bool, sign_file: bool, check_sing: bool, signature: bool = False) -> None:
             self.signature_filetypes = (("XML", "*.xml"),)
-            self.filetypes_for_encryp = (("TXT", "*.txt"), ("C++", "*.cpp"), ("PDF", "*.pdf"), ("PNG", "*.png"), ("ENC", "*.enc"))
+            self.filetypes_for_encryp = (("ALL", "*.*"), ("TXT", "*.txt"), ("C++", "*.cpp"), ("PDF", "*.pdf"), ("PNG", "*.png"), ("ENC", "*.enc"))
             self.filetypes_for_decryp = (("Encrypted File", "*.enc"),)
 
             file_types = self.filetypes_for_encryp if (encrypt or sign_file or check_sing) else self.filetypes_for_decryp
             if not signature:
                 self.selected_file = filedialog.askopenfilename(filetypes=self.signature_filetypes if signature else file_types)
                 self.selected_file_name.configure(text=os.path.basename(self.selected_file))
+                self.selected_signature_file = (f"{self.selected_file}" + (".enc" if encrypt else "") + ".signature.xml").replace(" ", "_")
+                self.selected_signature_file_name.configure(text=f"Default:\n{os.path.basename(self.selected_signature_file)}")
             else:
                 self.selected_signature_file = filedialog.askopenfilename(filetypes=self.signature_filetypes if signature else file_types)
                 self.selected_signature_file_name.configure(text=os.path.basename(self.selected_signature_file))
+
+            if not os.path.exists(self.selected_file):
+                self.selected_file_name.configure(text="File does not exist")
+                self.selected_file = None
+            
+            if not os.path.exists(self.selected_signature_file) and not encrypt:
+                self.selected_signature_file_name.configure(text="Signature file does not exist")
+                self.selected_signature_file = None
 
         def file_selection(self, encrypt: bool = False, sign_file: bool = False, check_sing: bool = False) -> None:
             self.clear_view()
@@ -212,7 +226,7 @@ class AppWindow:
 
         def select_output_file(self, encrypt: bool, signature: bool = False) -> None:
             self.file_output_path = None
-            self.output_types_for_decryp = (("TXT", "*.txt"), ("C++", "*.cpp"), ("PDF", "*.pdf"), ("PNG", "*.png"))
+            self.output_types_for_decryp = (("ALL", "*.*"), ("TXT", "*.txt"), ("C++", "*.cpp"), ("PDF", "*.pdf"), ("PNG", "*.png"))
             self.output_types_for_encryp = (("Encrypted File", "*.enc"),)
             self.output_signature_type = (("XML", "*.xml"),)
             file_types = self.output_types_for_encryp if encrypt else self.output_types_for_decryp
@@ -242,33 +256,52 @@ class AppWindow:
             self.selected_file_label = CTkLabel(self.right_frame, text="Output path:")
             self.selected_file_label.pack()
 
-            self.selected_output_name = CTkLabel(self.right_frame, text="")
-            self.selected_output_name.pack()
 
             if encrypt:
+                default_output_file = f"{self.selected_file}" + ".enc"
+                self.file_output_path = default_output_file.replace(" ", "_")
                 self.next_button = CTkButton(self.right_frame, text=f"{"Encrypt" if encrypt else "Decrypt"}", command=self.encrypt)
             else:
+                default_output_file = os.path.splitext(self.selected_file)[0]
+                self.file_output_path = default_output_file.replace(" ", "_")
                 self.next_button = CTkButton(self.right_frame, text=f"{"Encrypt" if encrypt else "Decrypt"}", command=self.decrypt)
+
+            self.selected_output_name = CTkLabel(self.right_frame, text=f"Default: \n {self.file_output_path}")
+            self.selected_output_name.pack()
+
             self.next_button.pack(side="bottom", pady=5)
 
-        def encrypt(self) -> None:
-            if self.file_output_path is None:
-                return
-            
+        def encrypt(self) -> None:            
             self.clear_view()
-
-            default_signature_file = os.path.splitext(self.selected_file)[0] + ".signature.xml"
+            
+            default_signature_file = f"{self.file_output_path}" + ".signature.xml"
             signature_file = self.selected_signature_file if self.selected_signature_file else default_signature_file
             self.info_label.configure(text=f"Encrypting in process...")
+
             pub_key_path = f"{self.selected_key}/PubKey.pem"
             priv_key_path = f"{self.selected_key}/PrivKey.pem"
             cert_path = f"{self.selected_key}/Cert.dem"
-            try:
-                fc.cipher_file(self.selected_file, pub_key_path, "encrypt", None, self.file_output_path, "file")
-                fc.generate_file_signature(self.file_output_path, priv_key_path, cert_path, self.pin, signature_file)
-                self.info_label.configure(text=f"Encrypting done! :)")
-            except Exception as e:
-                self.info_label.configure(text=f"{e} :(")
+
+            self.progress_bar = CTkProgressBar(self.right_frame, orientation="horizontal", width=200)
+            self.progress_bar.pack(pady=10)
+
+            def encryption_thread():
+                for button in self.buttons:
+                    button.configure(state="disabled")
+                try:
+                    fc.cipher_file(self.selected_file, pub_key_path, "encrypt", None, self.file_output_path, "file", self.progress_bar)
+                    fc.generate_file_signature(self.file_output_path, priv_key_path, cert_path, self.pin, signature_file)
+                    self.info_label.configure(text=f"Encrypting done! :)")
+                except Exception as e:
+                    self.info_label.configure(text=f"{e} :(")
+                finally:
+                    self.progress_bar.destroy()
+                    for button in self.buttons:
+                        button.configure(state="normal")
+                    
+            encryption_thread = threading.Thread(target=encryption_thread)
+            encryption_thread.start()
+
 
         def decrypt(self) -> None:
             if self.file_output_path is None:
@@ -287,12 +320,23 @@ class AppWindow:
             except Exception as e:
                 self.info_label.configure(text=f"{e} :(")
 
-            try:            
-                self.info_label.configure(text=f"Decrypting in process...")
-                fc.cipher_file(self.selected_file, priv_key_path, "decrypt", self.pin, self.file_output_path, "file")
-                self.info_label.configure(text=f"Decrypting done! :)")
-            except Exception as e:
-                self.info_label.configure(text=f"{e} :( {sign}")
+            self.progress_bar = CTkProgressBar(self.right_frame, orientation="horizontal", width=200)
+            self.progress_bar.pack(pady=10)
+            def decryption_thread():
+                for button in self.buttons:
+                    button.configure(state="disabled")
+                try:            
+                    self.info_label.configure(text=f"Decrypting in process...")
+                    fc.cipher_file(self.selected_file, priv_key_path, "decrypt", self.pin, self.file_output_path, "file", self.progress_bar)
+                    self.info_label.configure(text=f"Decrypting done! :)")
+                except Exception as e:
+                    self.info_label.configure(text=f"{e} :( {sign}")
+                finally:
+                    self.progress_bar.destroy()
+                    for button in self.buttons:
+                        button.configure(state="normal")
+            decryption_thread = threading.Thread(target=decryption_thread)
+            decryption_thread.start()
 
         def sign_file(self) -> None:
             self.clear_view()
