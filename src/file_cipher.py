@@ -1,8 +1,6 @@
 import math
-import tkinter as tk
 
 from customtkinter import *
-import customtkinter
 from rsa_generator import generate_keys
 
 from cryptography.exceptions import InvalidSignature
