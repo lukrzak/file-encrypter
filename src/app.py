@@ -241,7 +241,7 @@ class AppWindow:
                 self.selected_signature_file_name.configure(text=os.path.basename(self.selected_signature_file))
 
         def output_selection(self, encrypt: bool) -> None:
-            if self.selected_file is None:
+            if self.selected_file is None or self.selected_signature_file is None:
                 return
             
             self.clear_view()
@@ -311,12 +311,12 @@ class AppWindow:
             priv_key_path = f"{self.selected_key}/PrivKey.pem"
             default_signature_file = os.path.splitext(self.selected_file)[0] + ".signature.xml"
             signature_file = self.selected_signature_file if self.selected_signature_file else default_signature_file
-            sign = ""
 
             try:
                 self.info_label.configure(text=f"Checking file signature...")
                 if not fc.verify_signature(self.selected_file, signature_file):
-                    sign = "Bad signature"
+                    self.info_label.configure(text=f"Bad signature")
+                    return
             except Exception as e:
                 self.info_label.configure(text=f"{e} :(")
 
@@ -330,7 +330,7 @@ class AppWindow:
                     fc.cipher_file(self.selected_file, priv_key_path, "decrypt", self.pin, self.file_output_path, "file", self.progress_bar)
                     self.info_label.configure(text=f"Decrypting done! :)")
                 except Exception as e:
-                    self.info_label.configure(text=f"{e} :( {sign}")
+                    self.info_label.configure(text=f"{e} :(")
                 finally:
                     self.progress_bar.destroy()
                     for button in self.buttons:
