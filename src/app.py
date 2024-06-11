@@ -15,9 +15,9 @@ class AppWindow:
             self.app = CTk()
             self.app.title("File Encrypter")
             self.app.geometry("600x350")
-            self.found_keys = self.find_keys()
             self.keys_names = None
             self.progress_bar = None
+            self.pin = 0
             self.generate_window()
             
 
@@ -33,14 +33,19 @@ class AppWindow:
             return drives
 
         def find_keys(self) -> list:
-            keys = []
-            removable_drives = self.get_removable_drives()
-            for drive in removable_drives:
-                key_path = drive + "/fileEncrypter"
-                if os.path.exists(key_path):
-                    dirs = os.listdir(key_path)
-                    keys.append((dirs[0], f"{key_path}/{dirs[0]}"))
-            return keys
+            try:
+                keys = []
+                removable_drives = self.get_removable_drives()
+                for drive in removable_drives:
+                    key_path = drive + "/fileEncrypter"
+                    if os.path.exists(key_path):
+                        dirs = os.listdir(key_path)
+                        keys.append((dirs[0], f"{key_path}/{dirs[0]}"))
+                return keys
+            except Exception as e:
+                self.clear_view()
+                self.info_label.configure(text=f"Check your key \n I can not find keys on your device :(")
+                return
 
         def generate_window(self) -> None:
             enc_image = tk.PhotoImage(file="src/themes/encrypt.png")
@@ -91,27 +96,34 @@ class AppWindow:
             self.buttons = [encryptingButton, decryptingButton, signButton, checkButton, registerKeyButton]
 
             # Label for fined keys
+            self.found_keys = self.find_keys()
             self.refresh_found_keys()
 
             self.title.pack(pady=5)
             self.info_label.pack()
             self.app.mainloop()
+            
 
         def refresh_found_keys(self):
-            if hasattr(self, 'keys_found_label'): 
-                self.keys_found_label.destroy()
-            self.key_image = tk.PhotoImage(file="src/themes/key.png")
-            self.found_keys = self.find_keys()
-            self.keys_found_label = CTkLabel(self.left_frame, text="Keys found:")
-            self.keys_found_label.pack()
-            if self.keys_names is not None:
-                for k in self.keys_names:
-                    k.destroy()
-            self.keys_names = []
-            for index, key in enumerate(self.found_keys):
-                keys_name_label = CTkLabel(self.left_frame, text=f" {key[0]}", height=10, image=self.key_image, compound="left")
-                keys_name_label.pack()
-                self.keys_names.append(keys_name_label)
+            try:
+                if hasattr(self, 'keys_found_label'): 
+                    self.keys_found_label.destroy()
+                self.key_image = tk.PhotoImage(file="src/themes/key.png")
+                self.found_keys = self.find_keys()
+                self.keys_found_label = CTkLabel(self.left_frame, text="Keys found:")
+                self.keys_found_label.pack()
+                if self.keys_names is not None:
+                    for k in self.keys_names:
+                        k.destroy()
+                self.keys_names = []
+                for index, key in enumerate(self.found_keys):
+                    keys_name_label = CTkLabel(self.left_frame, text=f" {key[0]}", height=10, image=self.key_image, compound="left")
+                    keys_name_label.pack()
+                    self.keys_names.append(keys_name_label)
+            except Exception as e:
+                self.clear_view()
+                self.info_label.configure(text=f"Check your key \n I can not find keys on your device :(")
+                return
 
         def check_keys(self) -> bool:
             self.found_keys = self.find_keys()
@@ -124,28 +136,43 @@ class AppWindow:
             for element in elements:
                 element.destroy()
 
-        def select_key(self, encrypt: bool = False, sign_file: bool = False) -> None:
+        def select_key(self, encrypt: bool = False, sign_file: bool = False, check_sign: bool = False) -> None:
             self.refresh_found_keys()
             self.clear_view()
             self.files_selected = None
-            if not self.check_keys():
+            if not self.check_keys() and not encrypt:
                 return
             
-            if sign_file:
-                self.title.configure(text="Sign file")
-            else:
+            if encrypt:
                 self.title.configure(text=f"{"ENCRYPT" if encrypt else "DECRYPT"}")
-            self.info_label.configure(text="Select key:")
-            self.selected_key = StringVar()
-            self.radio_buttons_for_keys = []
-            for index, key in enumerate(self.found_keys):
-                key_name = key[0]
-                key_path = key[1]
-                rb = CTkRadioButton(self.right_frame, text=key_name, variable=self.selected_key, value=key_path)
-                rb.pack()
-                self.radio_buttons_for_keys.append(rb)
+                self.info_label.configure(text="Select key:")
+                self.selected_key = StringVar()
+                self.radio_buttons_for_keys = []
+                for index, key in enumerate(os.listdir(f"src/pubKeys")):
+                    key_name = os.path.splitext(os.path.basename(key))[0]
+                    key_path = key
+                    rb = CTkRadioButton(self.right_frame, text=key_name, variable=self.selected_key, value=key_path)
+                    rb.pack()
+                    self.radio_buttons_for_keys.append(rb)
+            else:
+                if sign_file:
+                    self.title.configure(text="Sign file")
+                else:
+                    self.title.configure(text=f"{"ENCRYPT" if encrypt else "DECRYPT"}")
+                self.info_label.configure(text="Select key:")
+                self.selected_key = StringVar()
+                self.radio_buttons_for_keys = []
+                for index, key in enumerate(self.found_keys):
+                    key_name = key[0]
+                    key_path = key[1]
+                    rb = CTkRadioButton(self.right_frame, text=key_name, variable=self.selected_key, value=key_path)
+                    rb.pack()
+                    self.radio_buttons_for_keys.append(rb)
 
-            self.next_button = CTkButton(self.right_frame, text="Next", command=lambda: self.write_pin(encrypt, sign_file))
+            if encrypt:
+                self.next_button = CTkButton(self.right_frame, text="Next", command=lambda: self.file_selection(encrypt, sign_file))
+            else:
+                self.next_button = CTkButton(self.right_frame, text="Next", command=lambda: self.write_pin(encrypt, sign_file))
             self.next_button.pack(side="bottom", pady=5)
 
         def write_pin(self, encrypt: bool, sign_file: bool) -> None:
@@ -160,7 +187,7 @@ class AppWindow:
             self.next_button = CTkButton(self.right_frame, text="Next", command=lambda: self.file_selection(encrypt, sign_file))
             self.next_button.pack(side="bottom", pady=5)
 
-        def select_file(self, encrypt: bool, sign_file: bool, check_sing: bool, signature: bool = False) -> None:
+        def select_file(self, encrypt: bool, sign_file: bool, check_sing: bool, signature: bool = False, default_sign: bool = False) -> None:
             self.signature_filetypes = (("XML", "*.xml"),)
             self.filetypes_for_encryp = (("ALL", "*.*"), ("TXT", "*.txt"), ("C++", "*.cpp"), ("PDF", "*.pdf"), ("PNG", "*.png"), ("ENC", "*.enc"))
             self.filetypes_for_decryp = (("Encrypted File", "*.enc"),)
@@ -169,8 +196,9 @@ class AppWindow:
             if not signature:
                 self.selected_file = filedialog.askopenfilename(filetypes=self.signature_filetypes if signature else file_types)
                 self.selected_file_name.configure(text=os.path.basename(self.selected_file))
-                self.selected_signature_file = (f"{self.selected_file}" + (".enc" if encrypt else "") + ".signature.xml").replace(" ", "_")
-                self.selected_signature_file_name.configure(text=f"Default:\n{os.path.basename(self.selected_signature_file)}")
+                if default_sign:
+                    self.selected_signature_file = f"{self.selected_file}.signature.xml"
+                    self.selected_signature_file_name.configure(text=f"Default:\n{self.selected_signature_file}")
             else:
                 self.selected_signature_file = filedialog.askopenfilename(filetypes=self.signature_filetypes if signature else file_types)
                 self.selected_signature_file_name.configure(text=os.path.basename(self.selected_signature_file))
@@ -178,13 +206,16 @@ class AppWindow:
             if not os.path.exists(self.selected_file):
                 self.selected_file_name.configure(text="File does not exist")
                 self.selected_file = None
-            
-            if not os.path.exists(self.selected_signature_file) and not encrypt:
-                self.selected_signature_file_name.configure(text="Signature file does not exist")
-                self.selected_signature_file = None
 
         def file_selection(self, encrypt: bool = False, sign_file: bool = False, check_sing: bool = False) -> None:
             self.clear_view()
+            if encrypt:
+                self.selected_key = self.selected_key.get()
+                key_signature = os.path.splitext(os.path.basename(self.selected_key))[0] 
+                key_signature = f"src/pubKeysSignatures/{key_signature}.xml"   
+                if not fc.verify_signature(f"src/pubKeys/{self.selected_key}", key_signature):
+                    self.info_label.configure(text=f"Public key signature\nis not correct")
+                    return
 
             if check_sing:
                 self.title.configure(text="Check signature")
@@ -199,19 +230,19 @@ class AppWindow:
             else:
                 self.info_label.configure(text=f"Select file to {"encrytp" if encrypt else "decrypt"}")
 
-            self.select_file_button = CTkButton(self.right_frame, text="Select file", command=lambda: self.select_file(encrypt, sign_file, check_sing))
+            self.select_file_button = CTkButton(self.right_frame, text="Select file", command=lambda: self.select_file(encrypt, sign_file, check_sing, default_sign=(True if sign_file else False)))
             self.select_file_button.pack()
 
             self.selected_file_name = CTkLabel(self.right_frame, text="")
             self.selected_file_name.pack()
             self.info_label.configure(text=f"")
-  
-            if sign_file or encrypt:
-                self.select_signature_file_button = CTkButton(self.right_frame, text="Select signature output file", command=lambda: self.select_output_file(encrypt, signature = True))
-                self.select_signature_file_button.pack()
-            else:
-                self.select_signature_file_button = CTkButton(self.right_frame, text="Select signature file", command=lambda: self.select_file(encrypt, sign_file, check_sing, signature = True))
-                self.select_signature_file_button.pack()
+            if not encrypt and (sign_file or check_sing):
+                if sign_file:
+                    self.select_signature_file_button = CTkButton(self.right_frame, text="Select signature output file", command=lambda: self.select_output_file(encrypt, signature = True))
+                    self.select_signature_file_button.pack()
+                else:
+                    self.select_signature_file_button = CTkButton(self.right_frame, text="Select signature file", command=lambda: self.select_file(encrypt, sign_file, check_sing, signature = True))
+                    self.select_signature_file_button.pack()
 
             self.selected_signature_file_name = CTkLabel(self.right_frame, text="")
             self.selected_signature_file_name.pack()
@@ -241,7 +272,7 @@ class AppWindow:
                 self.selected_signature_file_name.configure(text=os.path.basename(self.selected_signature_file))
 
         def output_selection(self, encrypt: bool) -> None:
-            if self.selected_file is None or self.selected_signature_file is None:
+            if self.selected_file is None:
                 return
             
             self.clear_view()
@@ -274,13 +305,9 @@ class AppWindow:
         def encrypt(self) -> None:            
             self.clear_view()
             
-            default_signature_file = f"{self.file_output_path}" + ".signature.xml"
-            signature_file = self.selected_signature_file if self.selected_signature_file else default_signature_file
             self.info_label.configure(text=f"Encrypting in process...")
 
-            pub_key_path = f"{self.selected_key}/PubKey.pem"
-            priv_key_path = f"{self.selected_key}/PrivKey.pem"
-            cert_path = f"{self.selected_key}/Cert.dem"
+            pub_key_path = f"{os.getcwd()}/src/pubKeys/{self.selected_key}".replace("\\","/")
 
             self.progress_bar = CTkProgressBar(self.right_frame, orientation="horizontal", width=200)
             self.progress_bar.pack(pady=10)
@@ -290,7 +317,6 @@ class AppWindow:
                     button.configure(state="disabled")
                 try:
                     fc.cipher_file(self.selected_file, pub_key_path, "encrypt", None, self.file_output_path, "file", self.progress_bar)
-                    fc.generate_file_signature(self.file_output_path, priv_key_path, cert_path, self.pin, signature_file)
                     self.info_label.configure(text=f"Encrypting done! :)")
                 except Exception as e:
                     self.info_label.configure(text=f"{e} :(")
@@ -309,16 +335,6 @@ class AppWindow:
 
             self.clear_view()
             priv_key_path = f"{self.selected_key}/PrivKey.pem"
-            default_signature_file = os.path.splitext(self.selected_file)[0] + ".signature.xml"
-            signature_file = self.selected_signature_file if self.selected_signature_file else default_signature_file
-
-            try:
-                self.info_label.configure(text=f"Checking file signature...")
-                if not fc.verify_signature(self.selected_file, signature_file):
-                    self.info_label.configure(text=f"Bad signature")
-                    return
-            except Exception as e:
-                self.info_label.configure(text=f"{e} :(")
 
             self.progress_bar = CTkProgressBar(self.right_frame, orientation="horizontal", width=200)
             self.progress_bar.pack(pady=10)
@@ -345,7 +361,10 @@ class AppWindow:
             signature_file = self.selected_signature_file if self.selected_signature_file else default_signature_file
             cert_path = f"{self.selected_key}/Cert.dem"
             self.info_label.configure(text=f"Signing file ...")
-            fc.generate_file_signature(self.selected_file, priv_key_path, cert_path, self.pin, signature_file)
+            try:  
+                fc.generate_file_signature(self.selected_file, priv_key_path, cert_path, self.pin, signature_file)
+            except Exception as e:
+                self.info_label.configure(text=f"{e} :(")
             self.info_label.configure(text=f"Signature generated! :)")
 
         def check_sign_file(self) -> None:
@@ -437,20 +456,36 @@ class AppWindow:
         def generate_registered_key(self) -> None:
             self.clear_view()
 
-            key_path = f"{self.selected_driver.get()}/fileEncrypter/{self.key_name}"
-            os.makedirs(key_path)
-
-            pub_key_path = f"{key_path}/PubKey.pem"
-            priv_key_path = f"{key_path}/PrivKey.pem"
-            cert_path = f"{key_path}/Cert.dem"
-
             try:
+                key_path = f"{self.selected_driver.get()}/fileEncrypter/{self.key_name}"
+                os.makedirs(key_path)
+
+                pub_key_path = f"{key_path}/PubKey.pem"
+                priv_key_path = f"{key_path}/PrivKey.pem"
+                cert_path = f"{key_path}/Cert.dem"
+
                 self.info_label.configure(text="Working...")
                 generate_keys(priv_key_path, pub_key_path, self.pin, cert_path)
                 self.info_label.configure(text="Key Registered! :)")
+                self.refresh_found_keys()
+
+                source_path = pub_key_path
+
+                destination_path = f'src/pubKeys/{self.key_name}.pem'
+
+                # Odczytanie zawartości pliku źródłowego
+                with open(source_path, 'rb') as src_file:
+                    content = src_file.read()
+
+                # Zapisanie zawartości do nowego pliku
+                with open(destination_path, 'wb') as dst_file:
+                    dst_file.write(content)
+
+                signature_file = f'src/pubKeysSignatures/{self.key_name}.xml'
+                fc.generate_file_signature(destination_path, priv_key_path, cert_path, self.pin, signature_file)
             except Exception as e:
                 self.info_label.configure(text=f"{e} :(")
-            self.refresh_found_keys()
+            
 
 
 AppWindow()
