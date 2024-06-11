@@ -1,5 +1,8 @@
 import math
 
+from customtkinter import *
+from rsa_generator import generate_keys
+
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -17,43 +20,43 @@ SALT: bytes = b'bsk-project'
 MAX_ENC_BLOCK_SIZE = 512 - 11   # 512 bytes (from the key size) - 11 for PKCS padding
 MAX_DEC_BLOCK_SIZE = 512        # 512 bytes from the key
 
-encryption_status_finish_value = 0
-encryption_status_current = 0
-decryption_status_finish_value = 0
-decryption_status_current = 0
-
 def cipher_file(file_path: str, key_path: str, mode: str, pin: str = None, output_path: str = None,
-                output_mode: str = "value"):
+                output_mode: str = "value", progress_bar: CTkProgressBar = None):
     if mode == "encrypt":
-        return encrypt_file(file_path, key_path, output_path, output_mode)
+        return encrypt_file(file_path, key_path, output_path, output_mode, progress_bar)
     elif mode == "decrypt":
-        return decrypt_key(file_path, key_path, pin, output_path, output_mode)
+        return decrypt_key(file_path, key_path, pin, output_path, output_mode, progress_bar)
     else:
         raise Exception("Unknown mode. Allowed values are 'encrypt' or 'decrypt'")
 
 
-def encrypt_file(file_path: str, public_key_path: str, output_path: str, output_mode: str = "value"):
+def encrypt_file(file_path: str, public_key_path: str, output_path: str, output_mode: str = "value", 
+                 progress_bar: CTkProgressBar = None):
     with open(public_key_path, "rb") as f:
         public_key = serialization.load_pem_public_key(f.read())
     with open(file_path, "rb") as f:
         content = f.read()
 
-    global encryption_status_finish_value
     encryption_status_finish_value = math.ceil(len(content) / MAX_ENC_BLOCK_SIZE)
     data_packages = [content[i * MAX_ENC_BLOCK_SIZE: (i + 1) * MAX_ENC_BLOCK_SIZE] for i in range(encryption_status_finish_value)]
     encrypted_file_content = b''
+    progress_val = 1/encryption_status_finish_value
+    step_val = 0
     for package in data_packages:
         encrypted_text = public_key.encrypt(
             package,
             padding.PKCS1v15()
         )
         encrypted_file_content += encrypted_text
-        enc_hook()
+        step_val = step_val + progress_val
+        progress_bar.set(step_val)
+        progress_bar.update_idletasks()
 
     return get_content(output_mode, encrypted_file_content, output_path)
 
 
-def decrypt_key(file_path: str, private_key_path: str, pin: str, output_path: str, output_mode: str = "value"):
+def decrypt_key(file_path: str, private_key_path: str, pin: str, output_path: str, output_mode: str = "value",
+                progress_bar: CTkProgressBar = None):
     with open(private_key_path, "rb") as f:
         private_key = serialization.load_pem_private_key(
             f.read(),
@@ -62,18 +65,21 @@ def decrypt_key(file_path: str, private_key_path: str, pin: str, output_path: st
     with open(file_path, "rb") as f:
         content = f.read()
 
-    global decryption_status_finish_value
     decryption_status_finish_value = math.ceil(len(content) / MAX_DEC_BLOCK_SIZE)
     data_packages = [content[i * MAX_DEC_BLOCK_SIZE: (i + 1) * MAX_DEC_BLOCK_SIZE] for i in range(decryption_status_finish_value)]
     decrypted_file_content = b''
 
+    progress_val = 1/decryption_status_finish_value
+    step_val = 0
     for package in data_packages:
         decrypted_text = private_key.decrypt(
             package,
             padding.PKCS1v15()
         )
+        step_val = step_val + progress_val
         decrypted_file_content += decrypted_text
-        dec_hook()
+        progress_bar.set(step_val)
+        progress_bar.update_idletasks()
 
     return get_content(output_mode, decrypted_file_content, output_path)
 
@@ -189,15 +195,3 @@ def verify_signature(file_path: str, xades_signature_path: str):
         return True
     except InvalidSignature:
         return False
-
-
-def enc_hook():
-    # this method invokes, whenever portion of the data is encrypted
-    global encryption_status_current
-    encryption_status_current += 1
-
-
-def dec_hook():
-    # this method invokes, whenever portion of the data is decrypted
-    global decryption_status_current
-    decryption_status_current += 1
